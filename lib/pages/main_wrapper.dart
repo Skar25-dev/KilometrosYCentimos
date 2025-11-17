@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kilometrosycentimos/pages/home_page.dart';
 import 'package:kilometrosycentimos/pages/kilometers_page.dart';
-import 'package:kilometrosycentimos/pages/fuel_page.dart';
+import 'package:kilometrosycentimos/pages/refuel_page.dart';
 import 'package:kilometrosycentimos/pages/mechanic_page.dart';
 import 'package:kilometrosycentimos/services/auth_service.dart';
 import 'package:kilometrosycentimos/pages/login_page.dart';
@@ -21,7 +21,7 @@ class _MainWrapperState extends State<MainWrapper> {
   final List<Widget> _pages = [
     const HomePage(),
     const KilometersPage(),
-    const FuelPage(),
+    const RefuelPage(),
     const MechanicPage(),
   ];
 
@@ -75,7 +75,7 @@ class _MainWrapperState extends State<MainWrapper> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Inicio'),
           BottomNavigationBarItem(icon: Icon(Icons.speed), label: 'KM'),
-          BottomNavigationBarItem(icon: Icon(Icons.local_gas_station), label: 'Combustible'),
+          BottomNavigationBarItem(icon: Icon(Icons.local_gas_station), label: 'Repostajes'),
           BottomNavigationBarItem(icon: Icon(Icons.build), label: 'Mecánico'),
         ],
       ),

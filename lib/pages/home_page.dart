@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/car_service.dart';
 import 'add_car_page.dart';
 import 'kilometers_page.dart';
-import 'fuel_page.dart';
+import 'refuel_page.dart';
 import 'mechanic_page.dart';
 import 'car_detail_page.dart';
 
@@ -97,7 +97,7 @@ class _HomePageState extends State<HomePage> {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => FuelPage()),
+                MaterialPageRoute(builder: (_) => RefuelPage()),
               );
             },
           ),
