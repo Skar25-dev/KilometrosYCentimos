@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/car_service.dart';
+import '../services/kilometer_service.dart';
+import '../services/refuel_service.dart';
+import '../services/mechanic_service.dart';
 import 'add_car_page.dart';
 import 'kilometers_page.dart';
 import 'refuel_page.dart';
@@ -15,7 +18,12 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final CarService carService = CarService();
+  final KilometerService kilometerService = KilometerService();
+  final RefuelService refuelService = RefuelService();
+  final MechanicService mechanicService = MechanicService();
+  
   List<Map<String, dynamic>> cars = [];
+  Map<String, dynamic> carStats = {}; // Para almacenar estadísticas por coche
 
   @override
   void initState() {
@@ -26,6 +34,36 @@ class _HomePageState extends State<HomePage> {
   Future<void> loadCars() async {
     final data = await carService.getCars();
     setState(() => cars = data);
+    
+    // Cargar estadísticas para cada coche
+    for (final car in data) {
+      await loadCarStats(car['id']);
+    }
+  }
+
+  Future<void> loadCarStats(String carId) async {
+    try {
+      final totalKilometers = await kilometerService.getTotalKilometersSum(carId);
+      final totalRefuels = await refuelService.getTotalRefuelsCount(carId);
+      final totalVisits = await mechanicService.getTotalVisitsCount(carId);
+      
+      setState(() {
+        carStats[carId] = {
+          'totalKilometers': totalKilometers,
+          'totalRefuels': totalRefuels,
+          'totalVisits': totalVisits,
+        };
+      });
+    } catch (e) {
+      // Si hay error (tablas no creadas), usar valores por defecto
+      setState(() {
+        carStats[carId] = {
+          'totalKilometers': 0,
+          'totalRefuels': 0,
+          'totalVisits': 0,
+        };
+      });
+    }
   }
 
   void _showCarOptions(Map<String, dynamic> car) {
@@ -81,35 +119,35 @@ class _HomePageState extends State<HomePage> {
           ),
           ListTile(
             leading: const Icon(Icons.speed),
-            title: const Text('Editar kilómetros'),
+            title: const Text('Registrar kilómetros'),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => KilometersPage()),
-              );
+                MaterialPageRoute(builder: (_) => const KilometersPage()),
+              ).then((_) => loadCars()); // Recargar al volver
             },
           ),
           ListTile(
             leading: const Icon(Icons.local_gas_station),
-            title: const Text('Editar combustible'),
+            title: const Text('Registrar repostaje'),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => RefuelPage()),
-              );
+                MaterialPageRoute(builder: (_) => const RefuelPage()),
+              ).then((_) => loadCars()); // Recargar al volver
             },
           ),
           ListTile(
             leading: const Icon(Icons.build),
-            title: const Text('Editar visitas al mecánico'),
+            title: const Text('Registrar visita al taller'),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => MechanicPage()),
-              );
+                MaterialPageRoute(builder: (_) => const MechanicPage()),
+              ).then((_) => loadCars()); // Recargar al volver
             },
           ),
         ],
@@ -146,6 +184,12 @@ class _HomePageState extends State<HomePage> {
               itemBuilder: (context, index) {
                 final car = cars[index];
                 final imageUrl = car['image_url'];
+                final carId = car['id'];
+                final stats = carStats[carId] ?? {
+                  'totalKilometers': 0,
+                  'totalRefuels': 0,
+                  'totalVisits': 0,
+                };
                 
                 return Card(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -238,24 +282,27 @@ class _HomePageState extends State<HomePage> {
                               ),
                               const SizedBox(height: 12),
                               
-                              // Estadísticas
+                              // Estadísticas ACTUALIZADAS
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                                 children: [
                                   _buildStatItem(
                                     icon: Icons.speed,
-                                    value: '${car['kilometers'] ?? 0}',
+                                    value: '${stats['totalKilometers']}',
                                     label: 'KM',
+                                    tooltip: 'Total de kilómetros registrados',
                                   ),
                                   _buildStatItem(
                                     icon: Icons.local_gas_station,
-                                    value: '${car['fuel'] ?? 0}',
-                                    label: 'L',
+                                    value: '${stats['totalRefuels']}',
+                                    label: 'Repostajes',
+                                    tooltip: 'Número de repostajes',
                                   ),
                                   _buildStatItem(
                                     icon: Icons.build,
-                                    value: '${car['visits'] ?? 0}',
+                                    value: '${stats['totalVisits']}',
                                     label: 'Visitas',
+                                    tooltip: 'Visitas al taller',
                                   ),
                                 ],
                               ),
@@ -287,26 +334,30 @@ class _HomePageState extends State<HomePage> {
     required IconData icon,
     required String value,
     required String label,
+    String? tooltip,
   }) {
-    return Column(
-      children: [
-        Icon(icon, size: 20, color: Colors.blue),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
+    return Tooltip(
+      message: tooltip,
+      child: Column(
+        children: [
+          Icon(icon, size: 20, color: Colors.blue),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
           ),
-        ),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[600],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

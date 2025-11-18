@@ -4,8 +4,10 @@ import '../models/refuel_model.dart';
 final supabase = Supabase.instance.client;
 
 class RefuelService {
+  /// Obtiene el ID del usuario actual
   String? get userId => supabase.auth.currentUser?.id;
 
+  /// Añade un nuevo repostaje
   Future<void> addRefuel({
     required String carId,
     required DateTime date,
@@ -14,7 +16,7 @@ class RefuelService {
   }) async {
     final userId = this.userId;
     if (userId == null) throw Exception('No hay usuario autenticado');
-    
+
     final pricePerLiter = totalPrice / liters;
 
     final refuelData = {
@@ -28,12 +30,13 @@ class RefuelService {
     };
 
     final response = await supabase.from('refuels').insert(refuelData);
-
+    
     if (response != null && response.error != null) {
-      throw Exception('Error al guardar el repostaje: ${response.error!.message}');
+      throw Exception('Error al guardar repostaje: ${response.error!.message}');
     }
   }
 
+  /// Obtiene todos los repostajes de un coche
   Future<List<Refuel>> getRefuelsByCar(String carId) async {
     final response = await supabase
         .from('refuels')
@@ -47,6 +50,7 @@ class RefuelService {
     return [];
   }
 
+  /// Elimina un repostaje
   Future<void> deleteRefuel(String refuelId) async {
     final response = await supabase.from('refuels').delete().eq('id', refuelId);
     
@@ -55,6 +59,7 @@ class RefuelService {
     }
   }
 
+  /// Obtiene estadísticas de repostajes
   Future<Map<String, dynamic>> getRefuelStats(String carId) async {
     final refuels = await getRefuelsByCar(carId);
     
@@ -77,5 +82,11 @@ class RefuelService {
       'averagePricePerLiter': averagePricePerLiter,
       'refuelCount': refuels.length,
     };
+  }
+
+  /// Obtiene el número total de repostajes para un coche
+  Future<int> getTotalRefuelsCount(String carId) async {
+    final refuels = await getRefuelsByCar(carId);
+    return refuels.length;
   }
 }

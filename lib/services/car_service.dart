@@ -151,24 +151,4 @@ class CarService {
       throw Exception('Error actualizando kilómetros: ${response.error!.message}');
     }
   }
-
-  // ⛽ Actualizar combustible
-  Future<void> updateFuel(String id, int fuel) async {
-    final response = await supabase.from('cars').update({'fuel': fuel}).eq('id', id);
-    
-    // ✅ Manejar respuesta nula
-    if (response != null && response.error != null) {
-      throw Exception('Error actualizando combustible: ${response.error!.message}');
-    }
-  }
-
-  // 🧰 Actualizar visitas al mecánico
-  Future<void> updateVisits(String id, int visits) async {
-    final response = await supabase.from('cars').update({'visits': visits}).eq('id', id);
-    
-    // ✅ Manejar respuesta nula
-    if (response != null && response.error != null) {
-      throw Exception('Error actualizando visitas: ${response.error!.message}');
-    }
-  }
 }
