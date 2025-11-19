@@ -62,8 +62,8 @@ class _MainWrapperState extends State<MainWrapper> {
       body: _pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.white,
-        selectedItemColor: const Color.fromARGB(255, 14, 14, 110),
-        unselectedItemColor: const Color.fromARGB(128, 14, 14, 110),
+        selectedItemColor: const Color.fromARGB(255, 33, 150, 243),
+        unselectedItemColor: const Color.fromARGB(128, 33, 150, 243),
         showUnselectedLabels: true,
         type: BottomNavigationBarType.fixed,
         selectedIconTheme: const IconThemeData(size: 32),
