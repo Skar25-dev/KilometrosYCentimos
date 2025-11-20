@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../services/car_service.dart';
 import '../services/mechanic_service.dart';
 import '../models/mechanic_visit_model.dart';
+import '../services/mechanic_chart_service.dart';
+import '../models/mechanic_chart_data_model.dart'; 
+import '../widgets/mechanic_chart_widget.dart';
 
 class MechanicPage extends StatefulWidget {
   const MechanicPage({super.key});
@@ -13,11 +16,15 @@ class MechanicPage extends StatefulWidget {
 class _MechanicPageState extends State<MechanicPage> {
   final CarService carService = CarService();
   final MechanicService mechanicService = MechanicService();
+  final MechanicChartService mechanicChartService = MechanicChartService();
   
   String? selectedCarId;
   List<Map<String, dynamic>> cars = [];
   List<MechanicVisit> visits = [];
   Map<String, dynamic> stats = {};
+
+  List<MechanicChartData> mechanicChartData = [];
+  String selectedMechanicPeriod = 'month'; // 'week', 'month', 'year'
 
   // Controladores para el formulario
   final TextEditingController descriptionController = TextEditingController();
@@ -35,6 +42,10 @@ class _MechanicPageState extends State<MechanicPage> {
     final fetched = await carService.getCars();
     setState(() {
       cars = fetched;
+      if (fetched.isNotEmpty && selectedCarId == null) {
+        selectedCarId = fetched.first['id'].toString();
+        loadVisits(); 
+      }
     });
   }
 
@@ -47,6 +58,21 @@ class _MechanicPageState extends State<MechanicPage> {
     setState(() {
       visits = fetchedVisits;
       stats = fetchedStats;
+    });
+    
+    await loadMechanicChartData();
+  }
+
+  Future<void> loadMechanicChartData() async {
+    if (selectedCarId == null) return;
+    
+    final fetchedChartData = await mechanicChartService.getMechanicChartData(
+      carId: selectedCarId!,
+      period: selectedMechanicPeriod,
+    );
+    
+    setState(() {
+      mechanicChartData = fetchedChartData;
     });
   }
 
@@ -115,44 +141,95 @@ class _MechanicPageState extends State<MechanicPage> {
     }
   }
 
+  Widget _buildPeriodSelector() {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildPeriodButton('Esta semana', 'week'),
+            _buildPeriodButton('Este mes', 'month'),
+            _buildPeriodButton('Este año', 'year'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPeriodButton(String label, String period) {
+    final isSelected = selectedMechanicPeriod == period;
+    
+    return ElevatedButton(
+      onPressed: () {
+        setState(() {
+          selectedMechanicPeriod = period;
+        });
+        loadMechanicChartData();
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isSelected ? Colors.orange : Colors.grey[300],
+        foregroundColor: isSelected ? Colors.white : Colors.black,
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 12),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Visitas al Taller')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Selección de coche
-            const Text('Selecciona un coche:', style: TextStyle(fontSize: 18)),
-            const SizedBox(height: 10),
-            DropdownButton<String>(
-              value: selectedCarId,
-              hint: const Text('Elige un coche'),
-              isExpanded: true,
-              items: cars.map((car) {
-                return DropdownMenuItem(
-                  value: car['id'].toString(),
-                  child: Text('${car['name']} (${car['model']})'),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  selectedCarId = value;
-                });
-                loadVisits();
-              },
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('Selecciona un coche:', style: TextStyle(fontSize: 18)),
+                  const SizedBox(height: 10),
+                  DropdownButton<String>(
+                    value: selectedCarId,
+                    hint: const Text('Elige un coche'),
+                    isExpanded: true,
+                    items: cars.map((car) {
+                      return DropdownMenuItem(
+                        value: car['id'].toString(),
+                        child: Text('${car['name']} (${car['model']})'),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedCarId = value;
+                      });
+                      loadVisits();
+                    },
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 20),
 
             if (selectedCarId != null) ...[
               // Estadísticas
               _buildStatsCard(),
               const SizedBox(height: 20),
 
+              _buildPeriodSelector(),
+              
+              MechanicChartWidget(
+                chartData: mechanicChartData,
+                selectedPeriod: selectedMechanicPeriod,
+              ),
+
               // Formulario para añadir visita
               Card(
+                margin: const EdgeInsets.all(16),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -219,6 +296,14 @@ class _MechanicPageState extends State<MechanicPage> {
 
               // Lista de visitas
               _buildVisitsList(),
+            ] else if (cars.isEmpty) ...[
+              // Mostrar mensaje cuando no hay coches
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(
+                  child: Text('No hay coches disponibles. Añade un coche primero.'),
+                ),
+              ),
             ],
           ],
         ),
@@ -230,6 +315,7 @@ class _MechanicPageState extends State<MechanicPage> {
     final lastVisit = stats['lastVisit'];
     
     return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       color: Colors.orange[50],
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -279,56 +365,59 @@ class _MechanicPageState extends State<MechanicPage> {
   Widget _buildVisitsList() {
     if (visits.isEmpty) {
       return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
+        padding: EdgeInsets.all(16),
         child: Center(
           child: Text('No hay visitas al taller registradas'),
         ),
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Historial de Visitas',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 400),
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: visits.length,
-            itemBuilder: (context, index) {
-              final visit = visits[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: const Icon(Icons.build, color: Colors.orange),
-                  title: Text(visit.workshop),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(visit.description),
-                      Text(
-                        '${visit.date.day}/${visit.date.month}/${visit.date.year} - ${visit.cost.toStringAsFixed(2)}€',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () async {
-                      await mechanicService.deleteVisit(visit.id);
-                      await loadVisits();
-                    },
-                  ),
-                ),
-              );
-            },
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Historial de Visitas',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 400),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: visits.length,
+              itemBuilder: (context, index) {
+                final visit = visits[index];
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: const Icon(Icons.build, color: Colors.orange),
+                    title: Text(visit.workshop),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(visit.description),
+                        Text(
+                          '${visit.date.day}/${visit.date.month}/${visit.date.year} - ${visit.cost.toStringAsFixed(2)}€',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () async {
+                        await mechanicService.deleteVisit(visit.id);
+                        await loadVisits();
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

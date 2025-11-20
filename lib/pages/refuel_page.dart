@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/car_service.dart';
 import '../services/refuel_service.dart';
-import '../services/chart_service.dart';
 import '../models/refuel_model.dart';
+import '../services/chart_service.dart';
 import '../models/chart_data_model.dart';
 import '../widgets/fuel_chart_widget.dart';
 
@@ -16,16 +16,16 @@ class RefuelPage extends StatefulWidget {
 class _RefuelPageState extends State<RefuelPage> {
   final CarService carService = CarService();
   final RefuelService refuelService = RefuelService();
-  final ChartService chartService = ChartService(); // ✅ Nuevo
+  final ChartService chartService = ChartService();
   
   String? selectedCarId;
   List<Map<String, dynamic>> cars = [];
   List<Refuel> refuels = [];
   Map<String, dynamic> stats = {};
 
-  // ✅ Nuevas variables para el gráfico
+  // Variables para el gráfico
   List<FuelChartData> chartData = [];
-  String selectedPeriod = 'month'; // 'week', 'month', 'year'
+  String selectedPeriod = 'month';
   Map<String, dynamic> chartStats = {};
 
   // Controladores para el formulario
@@ -43,6 +43,10 @@ class _RefuelPageState extends State<RefuelPage> {
     final fetched = await carService.getCars();
     setState(() {
       cars = fetched;
+      if (fetched.isNotEmpty) {
+        selectedCarId = fetched.first['id'].toString();
+        loadRecords(); 
+      }
     });
   }
 
@@ -57,11 +61,10 @@ class _RefuelPageState extends State<RefuelPage> {
       stats = fetchedStats;
     });
     
-    // ✅ Cargar datos del gráfico también
+    // Cargar datos del gráfico también
     await loadChartData();
   }
 
-  // ✅ Nuevo método para cargar datos del gráfico
   Future<void> loadChartData() async {
     if (selectedCarId == null) return;
     
@@ -136,7 +139,6 @@ class _RefuelPageState extends State<RefuelPage> {
     }
   }
 
-  // ✅ Nuevo método para el selector de período
   Widget _buildPeriodSelector() {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -154,7 +156,6 @@ class _RefuelPageState extends State<RefuelPage> {
     );
   }
 
-  // ✅ Nuevo método para botones de período
   Widget _buildPeriodButton(String label, String period) {
     final isSelected = selectedPeriod == period;
     
@@ -193,7 +194,8 @@ class _RefuelPageState extends State<RefuelPage> {
                   const SizedBox(height: 10),
                   DropdownButton<String>(
                     value: selectedCarId,
-                    hint: const Text('Elige un coche'),
+                    // ✅ AQUÍ TAMBIÉN - Mensaje contextual mejorado
+                    hint: cars.isEmpty ? const Text('No hay coches') : const Text('Elige un coche'),
                     isExpanded: true,
                     items: cars.map((car) {
                       return DropdownMenuItem(
@@ -217,10 +219,10 @@ class _RefuelPageState extends State<RefuelPage> {
               _buildStatsCard(),
               const SizedBox(height: 20),
 
-              // ✅ SELECTOR DE PERÍODO PARA EL GRÁFICO
+              // SELECTOR DE PERÍODO PARA EL GRÁFICO
               _buildPeriodSelector(),
               
-              // ✅ GRÁFICO
+              // GRÁFICO
               FuelChartWidget(
                 chartData: chartData,
                 selectedPeriod: selectedPeriod,

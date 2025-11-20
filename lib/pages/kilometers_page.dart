@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../services/car_service.dart';
 import '../services/kilometer_service.dart';
 import '../models/kilometer_record_model.dart';
+import '../models/kilometer_chart_data_model.dart';
+import '../services/kilometer_chart_service.dart';
+import '../widgets/kilometer_chart_widget.dart';
 
 class KilometersPage extends StatefulWidget {
   const KilometersPage({super.key});
@@ -13,11 +16,15 @@ class KilometersPage extends StatefulWidget {
 class _KilometersPageState extends State<KilometersPage> {
   final CarService carService = CarService();
   final KilometerService kilometerService = KilometerService();
+  final KilometerChartService kilometerChartService = KilometerChartService();
   
   String? selectedCarId;
   List<Map<String, dynamic>> cars = [];
   List<KilometerRecord> records = [];
   Map<String, dynamic> stats = {};
+
+  List<KilometerChartData> kilometerChartData = [];
+  String selectedKilometerPeriod = 'month'; // 'week', 'month', 'year'
 
   // Controladores para el formulario
   final TextEditingController kilometersController = TextEditingController();
@@ -34,6 +41,10 @@ class _KilometersPageState extends State<KilometersPage> {
     final fetched = await carService.getCars();
     setState(() {
       cars = fetched;
+      if (fetched.isNotEmpty) {
+        selectedCarId = fetched.first['id'].toString();
+        loadRecords(); 
+      }
     });
   }
 
@@ -46,6 +57,21 @@ class _KilometersPageState extends State<KilometersPage> {
     setState(() {
       records = fetchedRecords;
       stats = fetchedStats;
+    });
+    
+    await loadKilometerChartData();
+  }
+
+  Future<void> loadKilometerChartData() async {
+    if (selectedCarId == null) return;
+    
+    final fetchedChartData = await kilometerChartService.getKilometerChartData(
+      carId: selectedCarId!,
+      period: selectedKilometerPeriod,
+    );
+    
+    setState(() {
+      kilometerChartData = fetchedChartData;
     });
   }
 
@@ -104,44 +130,96 @@ class _KilometersPageState extends State<KilometersPage> {
     }
   }
 
+  Widget _buildPeriodSelector() {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildPeriodButton('Esta semana', 'week'),
+            _buildPeriodButton('Este mes', 'month'),
+            _buildPeriodButton('Este año', 'year'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPeriodButton(String label, String period) {
+    final isSelected = selectedKilometerPeriod == period;
+    
+    return ElevatedButton(
+      onPressed: () {
+        setState(() {
+          selectedKilometerPeriod = period;
+        });
+        loadKilometerChartData();
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isSelected ? Colors.green : Colors.grey[300],
+        foregroundColor: isSelected ? Colors.white : Colors.black,
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 12),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Registro de Kilómetros')),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Selección de coche
-            const Text('Selecciona un coche:', style: TextStyle(fontSize: 18)),
-            const SizedBox(height: 10),
-            DropdownButton<String>(
-              value: selectedCarId,
-              hint: const Text('Elige un coche'),
-              isExpanded: true,
-              items: cars.map((car) {
-                return DropdownMenuItem(
-                  value: car['id'].toString(),
-                  child: Text('${car['name']} (${car['model']})'),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  selectedCarId = value;
-                });
-                loadRecords();
-              },
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('Selecciona un coche:', style: TextStyle(fontSize: 18)),
+                  const SizedBox(height: 10),
+                  DropdownButton<String>(
+                    value: selectedCarId,
+                    // ✅ AQUÍ TAMBIÉN - Mensaje contextual mejorado
+                    hint: cars.isEmpty ? const Text('No hay coches') : const Text('Elige un coche'),
+                    isExpanded: true,
+                    items: cars.map((car) {
+                      return DropdownMenuItem(
+                        value: car['id'].toString(),
+                        child: Text('${car['name']} (${car['model']})'),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        selectedCarId = value;
+                      });
+                      loadRecords();
+                    },
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 20),
 
             if (selectedCarId != null) ...[
               // Estadísticas
               _buildStatsCard(),
               const SizedBox(height: 20),
 
+              _buildPeriodSelector(),
+              
+              KilometerChartWidget(
+                chartData: kilometerChartData,
+                selectedPeriod: selectedKilometerPeriod,
+              ),
+
               // Formulario para añadir registro
               Card(
+                margin: const EdgeInsets.all(16),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -211,6 +289,7 @@ class _KilometersPageState extends State<KilometersPage> {
     final sumOfAllRecords = stats['sumOfAllRecords'] ?? 0;
     
     return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       color: Colors.green[50],
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -274,58 +353,61 @@ class _KilometersPageState extends State<KilometersPage> {
   Widget _buildRecordsList() {
     if (records.isEmpty) {
       return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
+        padding: EdgeInsets.all(16),
         child: Center(
           child: Text('No hay registros de kilómetros'),
         ),
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Historial de Registros',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 400),
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: records.length,
-            itemBuilder: (context, index) {
-              final record = records[index];
-              
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: const Icon(Icons.speed, color: Colors.green),
-                  title: Text('${record.kilometers} km'),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${record.date.day}/${record.date.month}/${record.date.year}'),
-                      if (record.notes != null && record.notes!.isNotEmpty)
-                        Text(
-                          record.notes!,
-                          style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
-                        ),
-                    ],
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () async {
-                      await kilometerService.deleteRecord(record.id);
-                      await loadRecords();
-                    },
-                  ),
-                ),
-              );
-            },
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Historial de Registros',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-        ),
-      ],
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 400),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: records.length,
+              itemBuilder: (context, index) {
+                final record = records[index];
+                
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: const Icon(Icons.speed, color: Colors.green),
+                    title: Text('${record.kilometers} km'),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${record.date.day}/${record.date.month}/${record.date.year}'),
+                        if (record.notes != null && record.notes!.isNotEmpty)
+                          Text(
+                            record.notes!,
+                            style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                          ),
+                      ],
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      onPressed: () async {
+                        await kilometerService.deleteRecord(record.id);
+                        await loadRecords();
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

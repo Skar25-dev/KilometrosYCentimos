@@ -122,7 +122,7 @@ class CarService {
         .from('cars')
         .select()
         .eq('user_id', userId)
-        .order('created_at', ascending: false);
+        .order('created_at', ascending: true);
 
     // ✅ Manejar respuesta nula
     if (response != null && response is List) {
