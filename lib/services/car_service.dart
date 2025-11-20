@@ -14,10 +14,7 @@ class CarService {
   Future<void> createCar({
     required String name,
     required String model,
-    required int? year, // ✅ Cambiado a required pero nullable
-    required int kilometers,
-    required double fuel,
-    required int visits,
+    required int? year,
     File? imageFile,
   }) async {
     final userId = this.userId;
@@ -42,10 +39,7 @@ class CarService {
     final carData = {
       'name': name,
       'model': model,
-      'year': year, // ✅ Agregar el año al mapa
-      'kilometers': kilometers,
-      'fuel': fuel,
-      'visits': visits,
+      'year': year, 
       'image_url': imageUrl,
       'user_id': userId,
       'created_at': DateTime.now().toIso8601String(),
