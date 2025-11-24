@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/car_service.dart';
 import '../services/refuel_service.dart';
 import '../models/refuel_model.dart';
@@ -17,6 +18,7 @@ class _RefuelPageState extends State<RefuelPage> {
   final CarService carService = CarService();
   final RefuelService refuelService = RefuelService();
   final ChartService chartService = ChartService();
+  final ImagePicker _imagePicker = ImagePicker();
   
   String? selectedCarId;
   List<Map<String, dynamic>> cars = [];
@@ -61,7 +63,6 @@ class _RefuelPageState extends State<RefuelPage> {
       stats = fetchedStats;
     });
     
-    // Cargar datos del gráfico también
     await loadChartData();
   }
 
@@ -139,6 +140,86 @@ class _RefuelPageState extends State<RefuelPage> {
     }
   }
 
+  // Función para manejar la selección de imagen
+  Future<void> _onTicketButtonPressed() async {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_library),
+                title: const Text('Seleccionar de la galería'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImageFromGallery();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_camera),
+                title: const Text('Tomar una foto'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _takePhotoWithCamera();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickImageFromGallery() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 80,
+      );
+
+      if (image != null) {
+        _handleSelectedImage(image);
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al seleccionar imagen: $e')),
+      );
+    }
+  }
+
+  Future<void> _takePhotoWithCamera() async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 80,
+      );
+
+      if (image != null) {
+        _handleSelectedImage(image);
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error al tomar foto: $e')),
+      );
+    }
+  }
+
+  void _handleSelectedImage(XFile image) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Ticket seleccionado: ${image.name}'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    
+    debugPrint('Imagen del ticket: ${image.path}');
+  }
+
   Widget _buildPeriodSelector() {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -194,7 +275,6 @@ class _RefuelPageState extends State<RefuelPage> {
                   const SizedBox(height: 10),
                   DropdownButton<String>(
                     value: selectedCarId,
-                    // ✅ AQUÍ TAMBIÉN - Mensaje contextual mejorado
                     hint: cars.isEmpty ? const Text('No hay coches') : const Text('Elige un coche'),
                     isExpanded: true,
                     items: cars.map((car) {
@@ -219,16 +299,18 @@ class _RefuelPageState extends State<RefuelPage> {
               _buildStatsCard(),
               const SizedBox(height: 20),
 
-              // SELECTOR DE PERÍODO PARA EL GRÁFICO
               _buildPeriodSelector(),
               
-              // GRÁFICO
-              FuelChartWidget(
-                chartData: chartData,
-                selectedPeriod: selectedPeriod,
+              // Gráfica
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: FuelChartWidget(
+                  chartData: chartData,
+                  selectedPeriod: selectedPeriod,
+                ),
               ),
 
-              // Formulario para añadir repostaje
+              // Formulario para añadir repostaje CON BOTÓN DE TICKET
               Card(
                 margin: const EdgeInsets.all(16),
                 child: Padding(
@@ -236,9 +318,41 @@ class _RefuelPageState extends State<RefuelPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text(
-                        'Añadir Repostaje',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Añadir Repostaje',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          // Botón del ticket
+                          Container(
+                            width: 50,
+                            height: 50,
+                            child: ElevatedButton(
+                              onPressed: _onTicketButtonPressed,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue[50],
+                                foregroundColor: Colors.blue,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                padding: const EdgeInsets.all(6),
+                              ),
+                              child: const Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.receipt, size: 20),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Ticket',
+                                    style: TextStyle(fontSize: 8),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
 
@@ -258,6 +372,7 @@ class _RefuelPageState extends State<RefuelPage> {
                           labelText: 'Litros repostados',
                           border: OutlineInputBorder(),
                           suffixText: 'L',
+                          hintText: 'Ej: 45.50',
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -270,6 +385,7 @@ class _RefuelPageState extends State<RefuelPage> {
                           labelText: 'Precio total',
                           border: OutlineInputBorder(),
                           suffixText: '€',
+                          hintText: 'Ej: 65.25',
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -279,6 +395,7 @@ class _RefuelPageState extends State<RefuelPage> {
                         _buildPricePerLiter(),
 
                       const SizedBox(height: 16),
+                      
                       ElevatedButton(
                         onPressed: _addRefuel,
                         child: const Text('Añadir Repostaje'),
@@ -362,7 +479,7 @@ class _RefuelPageState extends State<RefuelPage> {
             '${pricePerLiter.toStringAsFixed(3)} €/L',
             style: const TextStyle(
               fontWeight: FontWeight.bold,
-              color: Colors.green,
+              color: Colors.blue,
             ),
           ),
         ],

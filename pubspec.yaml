@@ -18,8 +18,7 @@ dependencies:
 flutter_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/icon/logo.png"
-  adaptive_icon_background: "#FFFFFF"  # Color de fondo para Android
+  image_path: "assets/images/logo_corto.png"
 
 dev_dependencies:
   flutter_test:
@@ -27,3 +26,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+  - assets/images/logo.png
+  - assets/images/logo_corto.png

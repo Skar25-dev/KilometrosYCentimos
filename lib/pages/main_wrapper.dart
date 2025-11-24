@@ -50,7 +50,12 @@ class _MainWrapperState extends State<MainWrapper> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kilómetros y Céntimos'),
+        title: Image.asset(
+          'assets/images/logo.png', 
+          height: 80,
+          fit: BoxFit.contain,
+        ),
+        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
