@@ -6,6 +6,7 @@ import '../models/refuel_model.dart';
 import '../services/chart_service.dart';
 import '../models/chart_data_model.dart';
 import '../widgets/fuel_chart_widget.dart';
+import '../services/ticket_mlkit_service.dart';
 
 class RefuelPage extends StatefulWidget {
   const RefuelPage({super.key});
@@ -19,6 +20,7 @@ class _RefuelPageState extends State<RefuelPage> {
   final RefuelService refuelService = RefuelService();
   final ChartService chartService = ChartService();
   final ImagePicker _imagePicker = ImagePicker();
+  final TicketMLKitService _mlKitService = TicketMLKitService();
   
   String? selectedCarId;
   List<Map<String, dynamic>> cars = [];
@@ -209,15 +211,196 @@ class _RefuelPageState extends State<RefuelPage> {
     }
   }
 
-  void _handleSelectedImage(XFile image) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Ticket seleccionado: ${image.name}'),
-        duration: const Duration(seconds: 2),
+  void _handleSelectedImage(XFile image) async {
+    try {
+      // Mostrar loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('ML Kit: Analizando ticket...'),
+            ],
+          ),
+        ),
+      );
+
+      // ✅ USAR EL SERVICIO SEPARADO
+      final extractedData = await _mlKitService.processTicketImage(image);
+      
+      Navigator.pop(context); // Cerrar loading
+
+      // Mostrar resultados
+      _showMLKitResults(extractedData);
+      
+    } catch (e) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error ML Kit: $e')),
+      );
+    }
+  }
+
+  void _showMLKitResults(Map<String, dynamic> data) {
+    // Calcular precio total si tenemos ambos datos
+    double? calculatedTotal;
+    if (data['liters'] != null && data['pricePerLiter'] != null) {
+      calculatedTotal = data['liters'] * data['pricePerLiter'];
+    }
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.auto_awesome, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('ML Kit - Resultados'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (data['liters'] != null)
+                ListTile(
+                  leading: const Icon(Icons.water_drop, color: Colors.blue),
+                  title: const Text('Litros detectados'),
+                  subtitle: Text('${data['liters']} L', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                )
+              else
+                const ListTile(
+                  leading: Icon(Icons.error, color: Colors.orange),
+                  title: Text('Litros no detectados'),
+                  subtitle: Text('No se pudo encontrar la cantidad de litros'),
+                ),
+              
+              if (data['pricePerLiter'] != null)
+                ListTile(
+                  leading: const Icon(Icons.sell, color: Colors.green),
+                  title: const Text('Precio por litro detectado'),
+                  subtitle: Text('${data['pricePerLiter']} €/L', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                )
+              else
+                const ListTile(
+                  leading: Icon(Icons.error, color: Colors.orange),
+                  title: Text('Precio por litro no detectado'),
+                  subtitle: Text('No se pudo encontrar el precio por litro'),
+                ),
+              
+              if (calculatedTotal != null)
+                ListTile(
+                  leading: const Icon(Icons.euro, color: Colors.orange),
+                  title: const Text('Precio total calculado'),
+                  subtitle: Text('${calculatedTotal.toStringAsFixed(2)} €', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green)),
+                ),
+              
+              if (data['date'] != null)
+                ListTile(
+                  leading: const Icon(Icons.calendar_today, color: Colors.purple),
+                  title: const Text('Fecha detectada'),
+                  subtitle: Text('${data['date'].day}/${data['date'].month}/${data['date'].year}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              
+              ListTile(
+                leading: const Icon(Icons.verified, color: Colors.blue),
+                title: const Text('Confianza'),
+                subtitle: Text(data['confidence']),
+              ),
+
+              // Para debug
+              const SizedBox(height: 16),
+              const Text('Texto reconocido:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  data['rawText'] ?? 'No hay texto',
+                  style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
+                ),
+              ),
+              
+              const SizedBox(height: 16),
+              if (data['liters'] != null || data['pricePerLiter'] != null || data['date'] != null)
+                ElevatedButton(
+                  onPressed: () => _autofillForm(data),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                  child: const Text('Autocompletar Formulario'),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar'),
+          ),
+        ],
       ),
     );
+  }
+
+  void _autofillForm(Map<String, dynamic> data) {
+    bool filledAnyField = false;
     
-    debugPrint('Imagen del ticket: ${image.path}');
+    if (data['liters'] != null) {
+      litersController.text = data['liters'].toString();
+      filledAnyField = true;
+      print('✅ Autocompletado - Litros: ${data['liters']}');
+    }
+    
+    if (data['pricePerLiter'] != null) {
+      // Solo mostramos el precio por litro en el diálogo, no lo autocompletamos
+      // porque el precio total se calcula automáticamente
+      print('✅ Precio por litro detectado: ${data['pricePerLiter']}');
+    }
+    
+    // Calcular y autocompletar el precio total si tenemos ambos datos
+    if (data['liters'] != null && data['pricePerLiter'] != null) {
+      final calculatedTotal = data['liters'] * data['pricePerLiter'];
+      totalPriceController.text = calculatedTotal.toStringAsFixed(2);
+      filledAnyField = true;
+      print('✅ Precio total calculado: $calculatedTotal');
+    }
+    
+    if (data['date'] != null) {
+      setState(() {
+        selectedDate = data['date'];
+      });
+      filledAnyField = true;
+      print('✅ Fecha autocompletada: ${data['date']}');
+    }
+    
+    Navigator.pop(context); // Cerrar diálogo
+    
+    if (filledAnyField) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Datos autocompletados con ML Kit'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudieron extraer datos del ticket'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
   }
 
   Widget _buildPeriodSelector() {
@@ -537,5 +720,11 @@ class _RefuelPageState extends State<RefuelPage> {
         ],
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    _mlKitService.dispose();
+    super.dispose();
   }
 }
