@@ -37,10 +37,17 @@ class _RefuelPageState extends State<RefuelPage> {
   final TextEditingController totalPriceController = TextEditingController();
   DateTime selectedDate = DateTime.now();
 
+  // Modo de cálculo
+  String _calculationMode = 'pricePerLiter'; // 'pricePerLiter' o 'totalPrice'
+
   @override
   void initState() {
     super.initState();
     loadCars();
+    
+    // Agregar listeners para recalcular automáticamente
+    litersController.addListener(_recalculateFields);
+    totalPriceController.addListener(_recalculateFields);
   }
 
   Future<void> loadCars() async {
@@ -101,17 +108,43 @@ class _RefuelPageState extends State<RefuelPage> {
     }
   }
 
+  // Función para recalcular campos automáticamente
+  void _recalculateFields() {
+    final liters = double.tryParse(litersController.text) ?? 0;
+    final inputValue = double.tryParse(totalPriceController.text) ?? 0;
+    
+    if (liters > 0 && inputValue > 0) {
+      if (_calculationMode == 'pricePerLiter') {
+        // Modo: Ingresar precio por litro → Calcular total
+        final total = liters * inputValue;
+        // No actualizamos el controlador para evitar loop infinito
+      } else {
+        // Modo: Ingresar total → Calcular precio por litro
+        final pricePerLiter = inputValue / liters;
+        // No actualizamos el controlador para evitar loop infinito
+      }
+    }
+  }
+
   Future<void> _addRefuel() async {
     if (selectedCarId == null) return;
 
     final liters = double.tryParse(litersController.text);
-    final totalPrice = double.tryParse(totalPriceController.text);
+    final inputValue = double.tryParse(totalPriceController.text);
 
-    if (liters == null || totalPrice == null || liters <= 0 || totalPrice <= 0) {
+    if (liters == null || inputValue == null || liters <= 0 || inputValue <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Por favor, introduce valores válidos')),
       );
       return;
+    }
+
+    // Calcular el precio total final según el modo
+    double totalPrice;
+    if (_calculationMode == 'pricePerLiter') {
+      totalPrice = liters * inputValue;
+    } else {
+      totalPrice = inputValue;
     }
 
     try {
@@ -363,17 +396,19 @@ class _RefuelPageState extends State<RefuelPage> {
     }
     
     if (data['pricePerLiter'] != null) {
-      // Solo mostramos el precio por litro en el diálogo, no lo autocompletamos
-      // porque el precio total se calcula automáticamente
-      print('✅ Precio por litro detectado: ${data['pricePerLiter']}');
-    }
-    
-    // Calcular y autocompletar el precio total si tenemos ambos datos
-    if (data['liters'] != null && data['pricePerLiter'] != null) {
-      final calculatedTotal = data['liters'] * data['pricePerLiter'];
-      totalPriceController.text = calculatedTotal.toStringAsFixed(2);
+      // Dependiendo del modo, usamos un campo u otro
+      if (_calculationMode == 'pricePerLiter') {
+        totalPriceController.text = data['pricePerLiter'].toString();
+      } else {
+        // Si estamos en modo total, calculamos el total
+        final liters = double.tryParse(litersController.text) ?? 0;
+        if (liters > 0) {
+          final total = liters * data['pricePerLiter']!;
+          totalPriceController.text = total.toStringAsFixed(2);
+        }
+      }
       filledAnyField = true;
-      print('✅ Precio total calculado: $calculatedTotal');
+      print('✅ Precio por litro detectado: ${data['pricePerLiter']}');
     }
     
     if (data['date'] != null) {
@@ -401,6 +436,29 @@ class _RefuelPageState extends State<RefuelPage> {
         ),
       );
     }
+  }
+
+  Widget _buildModeButton(String label, String mode) {
+    final isSelected = _calculationMode == mode;
+    
+    return ElevatedButton(
+      onPressed: () {
+        setState(() {
+          _calculationMode = mode;
+        });
+        _recalculateFields();
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isSelected ? Colors.blue : Colors.grey[300],
+        foregroundColor: isSelected ? Colors.white : Colors.black,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 12),
+        textAlign: TextAlign.center,
+      ),
+    );
   }
 
   Widget _buildPeriodSelector() {
@@ -560,22 +618,51 @@ class _RefuelPageState extends State<RefuelPage> {
                       ),
                       const SizedBox(height: 10),
 
-                      // Precio total
+                      // Selector de modo de cálculo
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Modo de cálculo:',
+                                style: TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildModeButton('Precio por litro', 'pricePerLiter'),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: _buildModeButton('Precio total', 'totalPrice'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Campo de precio (cambia según el modo)
                       TextField(
                         controller: totalPriceController,
                         keyboardType: TextInputType.numberWithOptions(decimal: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Precio total',
-                          border: OutlineInputBorder(),
-                          suffixText: '€',
-                          hintText: 'Ej: 65.25',
+                        decoration: InputDecoration(
+                          labelText: _calculationMode == 'pricePerLiter' ? 'Precio por litro' : 'Precio total',
+                          border: const OutlineInputBorder(),
+                          suffixText: _calculationMode == 'pricePerLiter' ? '€/L' : '€',
+                          hintText: _calculationMode == 'pricePerLiter' ? 'Ej: 1.499' : 'Ej: 65.25',
                         ),
                       ),
                       const SizedBox(height: 16),
 
-                      // Precio por litro (calculado)
+                      // Información calculada
                       if (litersController.text.isNotEmpty && totalPriceController.text.isNotEmpty)
-                        _buildPricePerLiter(),
+                        _buildCalculatedInfo(),
 
                       const SizedBox(height: 16),
                       
@@ -640,29 +727,53 @@ class _RefuelPageState extends State<RefuelPage> {
     );
   }
 
-  Widget _buildPricePerLiter() {
+  Widget _buildCalculatedInfo() {
     final liters = double.tryParse(litersController.text) ?? 0;
-    final totalPrice = double.tryParse(totalPriceController.text) ?? 0;
-    final pricePerLiter = liters > 0 ? totalPrice / liters : 0;
+    final inputValue = double.tryParse(totalPriceController.text) ?? 0;
+    
+    if (liters == 0 || inputValue == 0) return const SizedBox();
+
+    double calculatedValue;
+    String label;
+    Color color;
+
+    if (_calculationMode == 'pricePerLiter') {
+      // Modo: Ingresar precio por litro → Mostrar total calculado
+      calculatedValue = liters * inputValue;
+      label = 'Precio total calculado';
+      color = Colors.orange;
+    } else {
+      // Modo: Ingresar total → Mostrar precio por litro calculado
+      calculatedValue = inputValue / liters;
+      label = 'Precio por litro calculado';
+      color = Colors.green;
+    }
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.green[50],
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Text(
-            'Precio por litro:',
-            style: TextStyle(fontWeight: FontWeight.bold),
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
           ),
           Text(
-            '${pricePerLiter.toStringAsFixed(3)} €/L',
-            style: const TextStyle(
+            _calculationMode == 'pricePerLiter' 
+                ? '${calculatedValue.toStringAsFixed(2)} €'
+                : '${calculatedValue.toStringAsFixed(3)} €/L',
+            style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: Colors.blue,
+              color: color,
+              fontSize: 16,
             ),
           ),
         ],
@@ -725,6 +836,8 @@ class _RefuelPageState extends State<RefuelPage> {
   @override
   void dispose() {
     _mlKitService.dispose();
+    litersController.removeListener(_recalculateFields);
+    totalPriceController.removeListener(_recalculateFields);
     super.dispose();
   }
 }
