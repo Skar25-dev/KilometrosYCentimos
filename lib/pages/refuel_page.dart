@@ -30,6 +30,7 @@ class _RefuelPageState extends State<RefuelPage> {
   // Variables para el gráfico
   List<FuelChartData> chartData = [];
   String selectedPeriod = 'month';
+  String chartType = 'pricePerLiter'; // 'pricePerLiter' o 'totalPrice'
   Map<String, dynamic> chartStats = {};
 
   // Controladores para el formulario
@@ -81,11 +82,13 @@ class _RefuelPageState extends State<RefuelPage> {
     final fetchedChartData = await chartService.getFuelChartData(
       carId: selectedCarId!,
       period: selectedPeriod,
+      chartType: chartType, // Agrega esta línea
     );
     
     final fetchedStats = await chartService.getFuelStatsSummary(
       carId: selectedCarId!,
       period: selectedPeriod,
+      chartType: chartType, // Agrega esta línea
     );
     
     setState(() {
@@ -333,12 +336,18 @@ class _RefuelPageState extends State<RefuelPage> {
                   subtitle: Text('${calculatedTotal.toStringAsFixed(2)} €', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green)),
                 ),
               
-              if (data['date'] != null)
-                ListTile(
-                  leading: const Icon(Icons.calendar_today, color: Colors.purple),
-                  title: const Text('Fecha detectada'),
-                  subtitle: Text('${data['date'].day}/${data['date'].month}/${data['date'].year}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              // Fecha con opción de modificar
+              ListTile(
+                leading: const Icon(Icons.calendar_today, color: Colors.purple),
+                title: const Text('Fecha del repostaje'),
+                subtitle: data['date'] != null 
+                    ? Text('${data['date'].day}/${data['date'].month}/${data['date'].year}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))
+                    : const Text('No detectada', style: TextStyle(color: Colors.orange)),
+                trailing: IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.blue),
+                  onPressed: () => _selectDateFromDialog(context, data),
                 ),
+              ),
               
               ListTile(
                 leading: const Icon(Icons.verified, color: Colors.blue),
@@ -384,6 +393,24 @@ class _RefuelPageState extends State<RefuelPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _selectDateFromDialog(BuildContext context, Map<String, dynamic> data) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: data['date'] ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+    
+    if (picked != null) {
+      // Actualizar la fecha en los datos
+      data['date'] = picked;
+      
+      // Cerrar el diálogo actual y mostrar uno nuevo con la fecha actualizada
+      Navigator.pop(context);
+      _showMLKitResults(data);
+    }
   }
 
   void _autofillForm(Map<String, dynamic> data) {
@@ -461,19 +488,23 @@ class _RefuelPageState extends State<RefuelPage> {
     );
   }
 
-  Widget _buildPeriodSelector() {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildPeriodButton('Esta semana', 'week'),
-            _buildPeriodButton('Este mes', 'month'),
-            _buildPeriodButton('Este año', 'year'),
-          ],
-        ),
+  Widget _buildChartTypeButton(String label, String type) {
+    final isSelected = chartType == type;
+    
+    return ElevatedButton(
+      onPressed: () {
+        setState(() {
+          chartType = type;
+        });
+        loadChartData();
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isSelected ? Colors.blue : Colors.grey[300],
+        foregroundColor: isSelected ? Colors.white : Colors.black,
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 12),
       ),
     );
   }
@@ -540,7 +571,47 @@ class _RefuelPageState extends State<RefuelPage> {
               _buildStatsCard(),
               const SizedBox(height: 20),
 
-              _buildPeriodSelector(),
+              // Selector de período y tipo de gráfico
+              Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+                      // Selector de período
+                      const Text(
+                        'Período:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildPeriodButton('Esta semana', 'week'),
+                          _buildPeriodButton('Este mes', 'month'),
+                          _buildPeriodButton('Este año', 'year'),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Selector de tipo de gráfico
+                      const Text(
+                        'Mostrar en gráfico:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildChartTypeButton('Precio/L', 'pricePerLiter'),
+                          _buildChartTypeButton('Precio Total', 'totalPrice'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
               
               // Gráfica
               Padding(
@@ -548,8 +619,11 @@ class _RefuelPageState extends State<RefuelPage> {
                 child: FuelChartWidget(
                   chartData: chartData,
                   selectedPeriod: selectedPeriod,
+                  chartType: chartType, // Agrega esta línea
+                  chartStats: chartStats, // Agrega esta línea
                 ),
               ),
+              const SizedBox(height: 20),
 
               // Formulario para añadir repostaje CON BOTÓN DE TICKET
               Card(
@@ -598,12 +672,34 @@ class _RefuelPageState extends State<RefuelPage> {
                       const SizedBox(height: 16),
 
                       // Fecha
-                      ListTile(
-                        leading: const Icon(Icons.calendar_today),
-                        title: const Text('Fecha del repostaje'),
-                        subtitle: Text('${selectedDate.day}/${selectedDate.month}/${selectedDate.year}'),
-                        onTap: () => _selectDate(context),
+                      Card(
+                        child: ListTile(
+                          leading: const Icon(Icons.calendar_today, color: Colors.purple),
+                          title: const Text('Fecha del repostaje'),
+                          subtitle: Text(
+                            '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.blue),
+                                onPressed: () => _selectDate(context),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.today, color: Colors.green),
+                                onPressed: () {
+                                  setState(() {
+                                    selectedDate = DateTime.now();
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
+                      const SizedBox(height: 16),
 
                       // Litros
                       TextField(

@@ -5,11 +5,15 @@ import '../models/chart_data_model.dart';
 class FuelChartWidget extends StatefulWidget {
   final List<FuelChartData> chartData;
   final String selectedPeriod;
+  final String chartType; // 'pricePerLiter' o 'totalPrice'
+  final Map<String, dynamic>? chartStats;
 
   const FuelChartWidget({
     super.key,
     required this.chartData,
     required this.selectedPeriod,
+    required this.chartType,
+    this.chartStats,
   });
 
   @override
@@ -23,6 +27,12 @@ class _FuelChartWidgetState extends State<FuelChartWidget> {
       return _buildEmptyState();
     }
 
+    final chartTitle = widget.chartType == 'pricePerLiter' 
+        ? 'Evolución del Precio por Litro'
+        : 'Evolución del Precio Total por Repostaje';
+    
+    final yAxisTitle = widget.chartType == 'pricePerLiter' ? '€/L' : '€';
+
     return Card(
       margin: const EdgeInsets.all(16),
       child: Padding(
@@ -30,12 +40,18 @@ class _FuelChartWidgetState extends State<FuelChartWidget> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Análisis de Combustible',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Text(
+              chartTitle,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            _buildChart(),
+            
+            // Estadísticas del gráfico
+            if (widget.chartStats != null && widget.chartStats!.isNotEmpty)
+              _buildChartStats(),
+            
+            const SizedBox(height: 16),
+            _buildChart(yAxisTitle),
             const SizedBox(height: 16),
             _buildStatsSummary(),
           ],
@@ -44,7 +60,7 @@ class _FuelChartWidgetState extends State<FuelChartWidget> {
     );
   }
 
-  Widget _buildChart() {
+  Widget _buildChart(String yAxisTitle) {
     return SizedBox(
       height: 250,
       child: LineChart(
@@ -55,7 +71,7 @@ class _FuelChartWidgetState extends State<FuelChartWidget> {
               sideTitles: _bottomTitles,
             ),
             leftTitles: AxisTitles(
-              sideTitles: _leftTitles,
+              sideTitles: _leftTitles(yAxisTitle),
             ),
             rightTitles: const AxisTitles(
               sideTitles: SideTitles(showTitles: false),
@@ -70,17 +86,20 @@ class _FuelChartWidgetState extends State<FuelChartWidget> {
           ),
           minX: 0,
           maxX: widget.chartData.length > 1 ? (widget.chartData.length - 1).toDouble() : 1,
-          minY: _getMinPrice(),
-          maxY: _getMaxPrice(),
+          minY: _getMinValue(),
+          maxY: _getMaxValue(),
           lineBarsData: [
             LineChartBarData(
               spots: _getChartSpots(),
               isCurved: true,
-              color: Colors.blue,
+              color: Colors.blue, // ✅ Mismo color azul para ambas gráficas
               barWidth: 4,
               isStrokeCapRound: true,
               dotData: const FlDotData(show: true),
-              belowBarData: BarAreaData(show: false),
+              belowBarData: BarAreaData(
+                show: true,
+                color: Colors.blue.withOpacity(0.1), // ✅ Mismo color con transparencia
+              ),
             ),
           ],
         ),
@@ -88,82 +107,16 @@ class _FuelChartWidgetState extends State<FuelChartWidget> {
     );
   }
 
-  List<FlSpot> _getChartSpots() {
-    return widget.chartData.asMap().entries.map((entry) {
-      final index = entry.key;
-      final data = entry.value;
-      return FlSpot(index.toDouble(), data.pricePerLiter);
-    }).toList();
-  }
-
-  double _getMinPrice() {
-    if (widget.chartData.isEmpty) return 0;
-    final minPrice = widget.chartData.map((d) => d.pricePerLiter).reduce((a, b) => a < b ? a : b);
-    return (minPrice * 0.90); // ✅ Más margen (antes era 0.95)
-  }
-
-  double _getMaxPrice() {
-    if (widget.chartData.isEmpty) return 1;
-    final maxPrice = widget.chartData.map((d) => d.pricePerLiter).reduce((a, b) => a > b ? a : b);
-    return (maxPrice * 1.10); // ✅ Más margen (antes era 1.05)
-  }
-
-  SideTitles get _bottomTitles => SideTitles(
-        showTitles: true,
-        getTitlesWidget: (value, meta) {
-          if (value.toInt() >= widget.chartData.length) return const Text('');
-          final data = widget.chartData[value.toInt()];
-          return Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: Text(
-              '${data.date.day}/${data.date.month}',
-              style: const TextStyle(fontSize: 10),
-            ),
-          );
-        },
-      );
-
-  SideTitles get _leftTitles => SideTitles(
-        showTitles: true,
-        reservedSize: 50, // ✅ Más espacio reservado para el eje Y
-        interval: _getPriceInterval(), // ✅ Intervalo más espaciado
-        getTitlesWidget: (value, meta) {
-          return Padding(
-            padding: const EdgeInsets.only(right: 8.0), // ✅ Más padding a la derecha
-            child: Text(
-              '${value.toStringAsFixed(2)}€',
-              style: const TextStyle(fontSize: 10),
-              textAlign: TextAlign.right,
-            ),
-          );
-        },
-      );
-
-  // ✅ Nuevo método para calcular intervalos más espaciados
-  double _getPriceInterval() {
-    if (widget.chartData.isEmpty) return 1.0;
+  Widget _buildChartStats() {
+    final stats = widget.chartStats!;
+    final unit = stats['unit'] ?? '';
     
-    final minPrice = _getMinPrice();
-    final maxPrice = _getMaxPrice();
-    final range = maxPrice - minPrice;
-    
-    if (range <= 0.1) return 0.02;  // Para rangos muy pequeños
-    if (range <= 0.5) return 0.05;  // Para rangos pequeños
-    if (range <= 1.0) return 0.10;  // Para rangos medianos
-    return 0.20;                    // Para rangos grandes
-  }
-
-  Widget _buildStatsSummary() {
-    final totalLiters = widget.chartData.map((d) => d.liters).reduce((a, b) => a + b);
-    final totalSpent = widget.chartData.map((d) => d.totalPrice).reduce((a, b) => a + b);
-    final averagePrice = totalSpent / totalLiters;
-
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        _buildStatItem('Precio medio', '${averagePrice.toStringAsFixed(3)} €/L'),
-        _buildStatItem('Litros totales', '${totalLiters.toStringAsFixed(1)} L'),
-        _buildStatItem('Total gastado', '${totalSpent.toStringAsFixed(2)} €'),
+        _buildStatItem('Media', '${stats['average']?.toStringAsFixed(3) ?? '0'} $unit'),
+        _buildStatItem('Mín', '${stats['min']?.toStringAsFixed(2) ?? '0'} $unit'),
+        _buildStatItem('Máx', '${stats['max']?.toStringAsFixed(2) ?? '0'} $unit'),
       ],
     );
   }
@@ -183,6 +136,141 @@ class _FuelChartWidgetState extends State<FuelChartWidget> {
     );
   }
 
+  List<FlSpot> _getChartSpots() {
+    return widget.chartData.asMap().entries.map((entry) {
+      final index = entry.key;
+      final data = entry.value;
+      final value = widget.chartType == 'pricePerLiter' 
+          ? data.pricePerLiter 
+          : data.totalPrice;
+      return FlSpot(index.toDouble(), value);
+    }).toList();
+  }
+
+  double _getMinValue() {
+    if (widget.chartData.isEmpty) return 0;
+    
+    final values = widget.chartType == 'pricePerLiter'
+        ? widget.chartData.map((d) => d.pricePerLiter)
+        : widget.chartData.map((d) => d.totalPrice);
+    
+    final minValue = values.reduce((a, b) => a < b ? a : b);
+    return minValue * 0.90; // Margen del 10%
+  }
+
+  double _getMaxValue() {
+    if (widget.chartData.isEmpty) return 1;
+    
+    final values = widget.chartType == 'pricePerLiter'
+        ? widget.chartData.map((d) => d.pricePerLiter)
+        : widget.chartData.map((d) => d.totalPrice);
+    
+    final maxValue = values.reduce((a, b) => a > b ? a : b);
+    return maxValue * 1.10; // Margen del 10%
+  }
+
+  double _getValueInterval() {
+    if (widget.chartData.isEmpty) return 1.0;
+    
+    final minValue = _getMinValue();
+    final maxValue = _getMaxValue();
+    final range = maxValue - minValue;
+    
+    if (range <= 0) return 1.0;
+    
+    // Para precio por litro (valores pequeños)
+    if (widget.chartType == 'pricePerLiter') {
+      if (range <= 0.1) return 0.02;
+      if (range <= 0.5) return 0.05;
+      if (range <= 1.0) return 0.10;
+      return 0.20;
+    } 
+    // Para precio total (valores más grandes)
+    else {
+      if (range <= 5) return 1.0;
+      if (range <= 20) return 5.0;
+      if (range <= 50) return 10.0;
+      if (range <= 100) return 20.0;
+      return 50.0;
+    }
+  }
+
+  SideTitles get _bottomTitles => SideTitles(
+        showTitles: true,
+        getTitlesWidget: (value, meta) {
+          if (value.toInt() >= widget.chartData.length) return const Text('');
+          final data = widget.chartData[value.toInt()];
+          
+          // Formato según el período seleccionado
+          String label;
+          switch (widget.selectedPeriod) {
+            case 'week':
+              label = 'Sem ${data.date.day}/${data.date.month}';
+              break;
+            case 'month':
+              label = '${data.date.day}/${data.date.month}';
+              break;
+            case 'year':
+              label = '${_getMonthName(data.date.month)}';
+              break;
+            default:
+              label = '${data.date.day}/${data.date.month}';
+          }
+          
+          return Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 10),
+            ),
+          );
+        },
+      );
+
+  SideTitles _leftTitles(String yAxisTitle) => SideTitles(
+        showTitles: true,
+        reservedSize: 50,
+        interval: _getValueInterval(),
+        getTitlesWidget: (value, meta) {
+          return Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: Text(
+              widget.chartType == 'pricePerLiter'
+                  ? '${value.toStringAsFixed(2)}$yAxisTitle'
+                  : '${value.toStringAsFixed(0)}$yAxisTitle',
+              style: const TextStyle(fontSize: 10),
+              textAlign: TextAlign.right,
+            ),
+          );
+        },
+      );
+
+  String _getMonthName(int month) {
+    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 
+                    'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    return months[month - 1];
+  }
+
+  Widget _buildStatsSummary() {
+    final totalLiters = widget.chartData.fold(0.0, (sum, d) => sum + d.liters);
+    final totalSpent = widget.chartData.fold(0.0, (sum, d) => sum + d.totalPrice);
+    final averagePrice = totalLiters > 0 ? totalSpent / totalLiters : 0;
+    final averageTotal = widget.chartData.isNotEmpty ? totalSpent / widget.chartData.length : 0;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        if (widget.chartType == 'pricePerLiter')
+          _buildStatItem('Precio medio', '${averagePrice.toStringAsFixed(3)} €/L')
+        else
+          _buildStatItem('Media por repostaje', '${averageTotal.toStringAsFixed(2)} €'),
+        
+        _buildStatItem('Litros totales', '${totalLiters.toStringAsFixed(1)} L'),
+        _buildStatItem('Total gastado', '${totalSpent.toStringAsFixed(2)} €'),
+      ],
+    );
+  }
+
   Widget _buildEmptyState() {
     return Card(
       margin: const EdgeInsets.all(16),
@@ -190,11 +278,17 @@ class _FuelChartWidgetState extends State<FuelChartWidget> {
         padding: const EdgeInsets.all(32),
         child: Column(
           children: [
-            const Icon(Icons.bar_chart, size: 50, color: Colors.grey),
+            const Icon(
+              Icons.bar_chart, 
+              size: 50, 
+              color: Colors.blue 
+            ),
             const SizedBox(height: 16),
-            const Text(
-              'No hay datos para mostrar',
-              style: TextStyle(color: Colors.grey),
+            Text(
+              widget.chartType == 'pricePerLiter'
+                  ? 'No hay datos de precio por litro'
+                  : 'No hay datos de precio total',
+              style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 8),
             Text(

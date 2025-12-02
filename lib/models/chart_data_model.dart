@@ -1,13 +1,15 @@
 class FuelChartData {
-  final DateTime date;
+  final String period;
   final double pricePerLiter;
-  final double liters;
   final double totalPrice;
+  final double liters;
+  final DateTime date;
 
   FuelChartData({
-    required this.date,
+    required this.period,
     required this.pricePerLiter,
-    required this.liters,
     required this.totalPrice,
+    required this.liters,
+    required this.date,
   });
 }

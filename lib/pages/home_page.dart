@@ -8,6 +8,7 @@ import 'kilometers_page.dart';
 import 'refuel_page.dart';
 import 'mechanic_page.dart';
 import 'car_detail_page.dart';
+import '../constants/app_colors.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -72,19 +73,52 @@ class _HomePageState extends State<HomePage> {
       builder: (_) => Wrap(
         children: [
           ListTile(
-            leading: const Icon(Icons.info),
-            title: const Text('Ver detalles'),
+            leading: Icon(Icons.speed, color: AppColors.kilometers), // Azul para Kilómetros
+            title: Text(
+              'Registrar kilómetros',
+              style: TextStyle(color: AppColors.kilometers, fontWeight: FontWeight.w500),
+            ),
             onTap: () {
               Navigator.pop(context);
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => CarDetailPage(car: car)),
-              );
+                MaterialPageRoute(builder: (_) => const KilometersPage()),
+              ).then((_) => loadCars());
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.local_gas_station, color: AppColors.refuel), // Verde para Repostaje
+            title: Text(
+              'Registrar repostaje',
+              style: TextStyle(color: AppColors.refuel, fontWeight: FontWeight.w500),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const RefuelPage()),
+              ).then((_) => loadCars());
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.build, color: AppColors.mechanic), // Naranja para Taller
+            title: Text(
+              'Registrar visita al taller',
+              style: TextStyle(color: AppColors.mechanic, fontWeight: FontWeight.w500),
+            ),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MechanicPage()),
+              ).then((_) => loadCars());
             },
           ),
           ListTile(
             leading: const Icon(Icons.delete),
-            title: const Text('Eliminar coche'),
+            title: const Text('Eliminar coche', style: TextStyle(color: AppColors.delete)) ,
+            iconColor: AppColors.delete,
+            textColor: AppColors.delete,
             onTap: () async {
               Navigator.pop(context);
 
@@ -92,7 +126,7 @@ class _HomePageState extends State<HomePage> {
                 context: context,
                 builder: (context) => AlertDialog(
                   title: const Text('Confirmar eliminación'),
-                  content: Text('¿Seguro que quieres eliminar "${car['name']}" "${car['model']}"?'),
+                  content: Text('¿Seguro que quieres eliminar "${car['name']} ${car['model']}"?'),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
@@ -100,6 +134,10 @@ class _HomePageState extends State<HomePage> {
                     ),
                     ElevatedButton(
                       onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.delete,
+                        foregroundColor: Colors.white,
+                      ),
                       child: const Text('Eliminar'),
                     ),
                   ],
@@ -111,43 +149,13 @@ class _HomePageState extends State<HomePage> {
                 await loadCars();
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Coche "${car['name']}" "${car['model']}" eliminado')),
+                    SnackBar(
+                      content: Text('Coche "${car['name']}" "${car['model']}" eliminado'),
+                      backgroundColor: AppColors.delete,
+                    ),
                   );
                 }
               }
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.speed),
-            title: const Text('Registrar kilómetros'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const KilometersPage()),
-              ).then((_) => loadCars()); // Recargar al volver
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.local_gas_station),
-            title: const Text('Registrar repostaje'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const RefuelPage()),
-              ).then((_) => loadCars()); // Recargar al volver
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.build),
-            title: const Text('Registrar visita al taller'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const MechanicPage()),
-              ).then((_) => loadCars()); // Recargar al volver
             },
           ),
         ],
