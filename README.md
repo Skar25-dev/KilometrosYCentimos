@@ -32,22 +32,6 @@ Kilómetros y Céntimos es una app pensada para conductores que quieren tener co
 
 ---
 
-## 📸 Galería
-
-### 🚗 Pantalla Principal
-Vista general de tus vehículos con resumen de kilómetros totales, repostajes y visitas al taller.
-![Home](docs/screenshots/home.png)
-
-### 🤖 Escáner de Tickets OCR
-Fotografía el ticket de la gasolinera y la IA extrae litros, precio por litro y fecha automáticamente.
-![OCR](docs/screenshots/ocr_ticket.png)
-
-### 📊 Gráficas de Consumo
-Evolución del gasto en combustible filtrable por semana, mes o año.
-![Gráficas](docs/screenshots/charts.png)
-
----
-
 ## 🏗️ Arquitectura del Proyecto
 
 ```text
